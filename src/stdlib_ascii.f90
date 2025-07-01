@@ -69,35 +69,35 @@ module stdlib_ascii
 
     !> Returns a new character sequence which is the lower case 
     !> version of the input character sequence
-    !> This method is pure and returns a character sequence
+    !> This method is elemental and returns a character sequence
     interface to_lower
         module procedure :: to_lower
     end interface to_lower
 
     !> Returns a new character sequence which is the upper case
     !> version of the input character sequence
-    !> This method is pure and returns a character sequence
+    !> This method is elemental and returns a character sequence
     interface to_upper
         module procedure :: to_upper
     end interface to_upper
 
     !> Returns a new character sequence which is the title case
     !> version of the input character sequence
-    !> This method is pure and returns a character sequence
+    !> This method is elemental and returns a character sequence
     interface to_title
         module procedure :: to_title
     end interface to_title
 
     !> Returns a new character sequence which is the sentence case
     !> version of the input character sequence
-    !> This method is pure and returns a character sequence
+    !> This method is elemental and returns a character sequence
     interface to_sentence
         module procedure :: to_sentence
     end interface to_sentence
 
     !> Returns a new character sequence which is reverse of
     !> the input charater sequence
-    !> This method is pure and returns a character sequence
+    !> This method is elemental and returns a character sequence
     interface reverse
         module procedure :: reverse
     end interface reverse
@@ -219,41 +219,37 @@ contains
 
     !> Returns the corresponding lowercase letter, if `c` is an uppercase
     !> ASCII character, otherwise `c` itself.
-    pure function char_to_lower(c) result(t)
+    elemental function char_to_lower(c) result(t)
         character(len=1), intent(in) :: c !! A character.
         character(len=1)             :: t
+        integer, parameter :: wp= iachar('a')-iachar('A'), BA=iachar('A'), BZ=iachar('Z')
         integer :: k
+        !Check whether the integer equivalent is between BA=65 and BZ=90
+        k = ichar(c) 
+        if (k>=BA.and.k<=BZ) k = k + wp 
+        t = char(k)
 
-        k = index( uppercase, c )
-
-        if ( k > 0 ) then
-            t = lowercase(k:k)
-        else
-            t = c
-        endif
     end function char_to_lower
 
     !> Returns the corresponding uppercase letter, if `c` is a lowercase
     !> ASCII character, otherwise `c` itself.
-    pure function char_to_upper(c) result(t)
+    elemental function char_to_upper(c) result(t)
         character(len=1), intent(in) :: c !! A character.
         character(len=1)             :: t
+        integer, parameter :: wp= iachar('a')-iachar('A'), la=iachar('a'), lz=iachar('z')
         integer :: k
+        !Check whether the integer equivalent is between la=97 and lz=122
+        k = ichar(c) 
+        if (k>=la.and.k<=lz) k = k - wp 
+        t = char(k)
 
-        k = index( lowercase, c )
-
-        if ( k > 0 ) then
-            t = uppercase(k:k)
-        else
-            t = c
-        endif
     end function char_to_upper
 
     !> Convert character variable to lower case
     !> ([Specification](../page/specs/stdlib_ascii.html#to_lower))
     !>
     !> Version: experimental
-    pure function to_lower(string) result(lower_string)
+    elemental function to_lower(string) result(lower_string)
         character(len=*), intent(in) :: string
         character(len=len(string)) :: lower_string
         integer :: i
@@ -268,7 +264,7 @@ contains
     !> ([Specification](../page/specs/stdlib_ascii.html#to_upper))
     !>
     !> Version: experimental
-    pure function to_upper(string) result(upper_string)
+    elemental function to_upper(string) result(upper_string)
         character(len=*), intent(in) :: string
         character(len=len(string)) :: upper_string
         integer :: i
@@ -283,7 +279,7 @@ contains
     !> ([Specification](../page/specs/stdlib_ascii.html#to_title))
     !>
     !> Version: experimental
-    pure function to_title(string) result(title_string)
+    elemental function to_title(string) result(title_string)
         character(len=*), intent(in) :: string
         character(len=len(string)) :: title_string
         integer :: i
@@ -310,7 +306,7 @@ contains
     !> ([Specification](../page/specs/stdlib_ascii.html#to_sentence))
     !>
     !> Version: experimental
-    pure function to_sentence(string) result(sentence_string)
+    elemental function to_sentence(string) result(sentence_string)
         character(len=*), intent(in) :: string
         character(len=len(string)) :: sentence_string
         integer :: i, n
@@ -336,7 +332,7 @@ contains
     !> ([Specification](../page/specs/stdlib_ascii.html#reverse))
     !>
     !> Version: experimental
-    pure function reverse(string) result(reverse_string)
+    elemental function reverse(string) result(reverse_string)
         character(len=*), intent(in) :: string
         character(len=len(string)) :: reverse_string
         integer :: i, n

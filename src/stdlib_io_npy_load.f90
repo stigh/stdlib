@@ -2671,7 +2671,10 @@ contains
         character(len=8) :: header
         character :: buf(4)
         logical :: fortran_order
-
+        
+        ! stat should be zero if no error occurred
+        stat = 0
+        
         read(io, iostat=stat) header
         if (stat /= 0) return
 
@@ -2683,12 +2686,12 @@ contains
 
         if (major > 1) then
             header_len = ichar(buf(1)) &
-                &      + ichar(buf(2)) * 2**8 &
-                &      + ichar(buf(3)) * 2**16 &
-                &      + ichar(buf(4)) * 2**32
+                &      + ichar(buf(2)) * 256**1 &
+                &      + ichar(buf(3)) * 256**2 &
+                &      + ichar(buf(4)) * 256**3
         else
             header_len = ichar(buf(1)) &
-                &      + ichar(buf(2)) * 2**8
+                &      + ichar(buf(2)) * 256**1
         end if
         allocate(character(header_len) :: dict, stat=stat)
         if (stat /= 0) return
@@ -2730,6 +2733,9 @@ contains
         character(len=:), allocatable, intent(out) :: msg
 
         integer :: minor
+
+        ! stat should be zero if no error occurred
+        stat = 0
 
         if (header(1:1) /= magic_number) then
             stat = 1

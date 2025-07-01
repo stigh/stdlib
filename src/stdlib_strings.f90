@@ -4,16 +4,18 @@
 !> The specification of this module is available [here](../page/specs/stdlib_strings.html).
 module stdlib_strings
     use stdlib_ascii, only: whitespace
-    use stdlib_string_type, only: string_type, char, verify, repeat, len
+    use stdlib_string_type, only: string_type, char, verify, repeat, len, len_trim, move
     use stdlib_optval, only: optval
-    use stdlib_kinds, only: sp, dp, xdp, qp, int8, int16, int32, int64, lk, c_bool
+    use stdlib_kinds, only: sp, dp, xdp, qp, int8, int16, int32, int64, lk, c_bool, c_char
+    use iso_c_binding, only: c_null_char
     implicit none
     private
 
     public :: to_string
+    public :: to_c_char
     public :: strip, chomp
     public :: starts_with, ends_with
-    public :: slice, find, replace_all, padl, padr, count
+    public :: slice, find, replace_all, padl, padr, count, zfill, join
 
     !> Version: experimental
     !>
@@ -85,16 +87,16 @@ module stdlib_strings
             character(len=*), intent(in) :: format
             character(len=:), allocatable :: string
         end function to_string_2_l_lk
-        pure module function to_string_1_l_c_bool(value) result(string)
-            logical(c_bool), intent(in) :: value
-            character(len=1) :: string 
-        end function to_string_1_l_c_bool
-        pure module function to_string_2_l_c_bool(value, format) result(string)
-            logical(c_bool), intent(in) :: value
-            character(len=*), intent(in) :: format
-            character(len=:), allocatable :: string
-        end function to_string_2_l_c_bool
     end interface to_string
+
+    !> Version: experimental
+    !>
+    !> Format or transfer other types as a string.
+    !> ([Specification](../page/specs/stdlib_strings.html#to_c_char))
+    interface to_c_char
+        module procedure to_c_char_from_char
+        module procedure to_c_char_from_string
+    end interface to_c_char
 
     !> Remove leading and trailing whitespace characters.
     !>
@@ -207,6 +209,25 @@ module stdlib_strings
         module procedure :: count_char_string
         module procedure :: count_char_char
     end interface count
+
+    !> Version: experimental
+    !>
+    !> Left pad the input string with zeros.
+    !> [Specifications](../page/specs/stdlib_strings.html#zfill)
+    interface zfill
+        module procedure :: zfill_string
+        module procedure :: zfill_char
+    end interface zfill
+
+    !> Version: experimental
+    !>
+    !> Joins an array of strings into a single string. 
+    !> The chunks are separated with a space, or an optional user-defined separator.
+    !> [Specifications](../page/specs/stdlib_strings.html#join)
+    interface join
+        module procedure :: join_string
+        module procedure :: join_char
+    end interface join
 
 contains
 
@@ -962,6 +983,122 @@ contains
         end if
     
     end function count_char_char
+
+    !> Left pad the input string with zeros
+    !>
+    !> Returns a new string
+    pure function zfill_string(string, output_length) result(res)
+        type(string_type), intent(in) :: string
+        integer, intent(in) :: output_length
+        type(string_type) :: res
+
+        res = string_type(padl(char(string), output_length, "0"))
+
+    end function zfill_string
+
+    !> Left pad the input string with zeros
+    !>
+    !> Returns a new string
+    pure function zfill_char(string, output_length) result(res)
+        character(len=*), intent(in) :: string
+        integer, intent(in) :: output_length
+        character(len=max(len(string), output_length)) :: res
+
+        res = padl(string, output_length, "0")
+
+    end function zfill_char
     
+    !> Convert a Fortran character string to a C character array
+    !>
+    !> Version: experimental    
+    pure function to_c_char_from_char(value) result(cstr)
+       character(len=*), intent(in) :: value
+       character(kind=c_char) :: cstr(len(value)+1)
+       integer :: i,lv
+       lv = len(value)
+       do concurrent (i=1:lv) 
+           cstr(i) = value(i:i)
+       end do 
+       cstr(lv+1) = c_null_char
+    end function to_c_char_from_char
+    
+    !> Convert a Fortran string type to a C character array
+    !>
+    !> Version: experimental    
+    pure function to_c_char_from_string(value) result(cstr)
+       type(string_type), intent(in) :: value
+       character(kind=c_char) :: cstr(len(value)+1)
+       integer :: i,lv
+       lv = len(value)
+       do concurrent (i=1:lv) 
+           cstr(i) = char(value,pos=i)
+       end do 
+       cstr(lv+1) = c_null_char
+    end function to_c_char_from_string    
+    
+    !> Joins a list of strings with a separator (default: space).
+    !> Returns a new string
+    pure type(string_type) function join_string(strings, separator) 
+        type(string_type), intent(in) :: strings(:)
+        character(len=*), intent(in), optional :: separator
+        integer :: ltot, i, lt, pos
+        character(len=:), allocatable :: sep,joined
+        ! Determine separator: use user-provided separator or default space
+        if (present(separator)) then
+            sep = separator
+        else
+            sep = ' '
+        end if
+        ! Calculate the total length required, including separators
+        ltot = sum(len_trim(strings)) + (size(strings) - 1) * len(sep)
+        allocate(character(len=ltot) :: joined)
+        
+        ! Concatenate strings with separator
+        pos = 0
+        do i = 1, size(strings)
+            lt = len_trim(strings(i))
+            joined(pos+1:pos+lt) = char(strings(i),1,lt)
+            pos = pos + lt
+            if (i < size(strings)) then
+                joined(pos+1:pos+len(sep)) = sep
+                pos = pos + len(sep)
+            end if
+        end do
+        
+        call move(from=joined,to=join_string)
+        
+    end function join_string    
+
+    !> Joins a list of strings with a separator (default: space).
+    !> Returns a new string
+    pure function join_char(strings, separator) result(joined)
+        character(*), intent(in) :: strings(:)
+        character(len=*), intent(in), optional :: separator
+        character(len=:), allocatable :: joined
+        integer :: ltot, i, lt, pos
+        character(len=:), allocatable :: sep
+        ! Determine separator: use user-provided separator or default space
+        if (present(separator)) then
+            sep = separator
+        else
+            sep = ' '
+        end if
+        ! Calculate the total length required, including separators
+        ltot = sum(len_trim(strings)) + (size(strings) - 1) * len(sep)
+        allocate(character(len=ltot) :: joined)
+        
+        joined = repeat(' ',ltot)
+        ! Concatenate strings with separator
+        pos = 0
+        do i = 1, size(strings)
+            lt = len_trim(strings(i))
+            joined(pos+1:pos+lt) = strings(i)(1:lt)
+            pos = pos + lt
+            if (i < size(strings)) then
+                joined(pos+1:pos+len(sep)) = sep
+                pos = pos + len(sep)
+            end if
+        end do
+    end function join_char
 
 end module stdlib_strings
